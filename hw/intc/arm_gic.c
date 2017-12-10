@@ -28,7 +28,7 @@
 #include "sysemu/kvm.h"
 
 /* #define DEBUG_GIC */
-
+//#define DEBUG_GIC
 #ifdef DEBUG_GIC
 #define DEBUG_GIC_GATE 1
 #else
@@ -80,13 +80,20 @@ void gic_update(GICState *s)
     int cpu;
     int cm;
 
+    DPRINTF("gic update\n");
     for (cpu = 0; cpu < s->num_cpu; cpu++) {
         cm = 1 << cpu;
         s->current_pending[cpu] = 1023;
+        s->cpu_ctlr[cpu] = 1;
         if (!(s->ctlr & (GICD_CTLR_EN_GRP0 | GICD_CTLR_EN_GRP1))
             || !(s->cpu_ctlr[cpu] & (GICC_CTLR_EN_GRP0 | GICC_CTLR_EN_GRP1))) {
             qemu_irq_lower(s->parent_irq[cpu]);
             qemu_irq_lower(s->parent_fiq[cpu]);
+            DPRINTF("cpu %d %x,  continue %d %d %x\n", cpu, s->cpu_ctlr[cpu], 
+            	!(s->ctlr & (GICD_CTLR_EN_GRP0 | GICD_CTLR_EN_GRP1)),
+            	!(s->cpu_ctlr[cpu] & (GICC_CTLR_EN_GRP0 | GICC_CTLR_EN_GRP1)),
+            	(GICC_CTLR_EN_GRP0 | GICC_CTLR_EN_GRP1)
+            	);
             continue;
         }
         best_prio = 0x100;
@@ -107,7 +114,9 @@ void gic_update(GICState *s)
         }
 
         irq_level = fiq_level = 0;
-
+        s->priority_mask[cpu] = 0x10;
+        DPRINTF(" best_prio %x\n", best_prio);
+        DPRINTF(" mask      %x\n", s->priority_mask[cpu]);
         if (best_prio < s->priority_mask[cpu]) {
             s->current_pending[cpu] = best_irq;
             if (best_prio < s->running_priority[cpu]) {
@@ -154,7 +163,7 @@ static void gic_set_irq_11mpcore(GICState *s, int irq, int level,
     if (level) {
         GIC_SET_LEVEL(irq, cm);
         if (GIC_TEST_EDGE_TRIGGER(irq) || GIC_TEST_ENABLED(irq, cm)) {
-            DPRINTF("Set %d pending mask %x\n", irq, target);
+            DPRINTF("1. Set %d pending mask %x\n", irq, target);
             GIC_SET_PENDING(irq, target);
         }
     } else {
@@ -167,8 +176,9 @@ static void gic_set_irq_generic(GICState *s, int irq, int level,
 {
     if (level) {
         GIC_SET_LEVEL(irq, cm);
-        DPRINTF("Set %d pending mask %x\n", irq, target);
+        DPRINTF("2. Set %d pending mask %x\n", irq, target);
         if (GIC_TEST_EDGE_TRIGGER(irq)) {
+        	DPRINTF("edge trigger %d %d \n", irq, target);
             GIC_SET_PENDING(irq, target);
         }
     } else {
@@ -579,7 +589,7 @@ void gic_complete_irq(GICState *s, int cpu, int irq, MemTxAttrs attrs)
            raised.  */
         if (!GIC_TEST_EDGE_TRIGGER(irq) && GIC_TEST_ENABLED(irq, cm)
             && GIC_TEST_LEVEL(irq, cm) && (GIC_TARGET(irq) & cm) != 0) {
-            DPRINTF("Set %d pending mask %x\n", irq, cm);
+            DPRINTF("3. Set %d pending mask %x\n", irq, cm);
             GIC_SET_PENDING(irq, cm);
         }
     }
@@ -904,7 +914,7 @@ static void gic_dist_writeb(void *opaque, hwaddr offset,
                    is as pending.  */
                 if (GIC_TEST_LEVEL(irq + i, mask)
                         && !GIC_TEST_EDGE_TRIGGER(irq + i)) {
-                    DPRINTF("Set %d pending mask %x\n", irq + i, mask);
+                    DPRINTF("4. Set %d pending mask %x\n", irq + i, mask);
                     GIC_SET_PENDING(irq + i, mask);
                 }
             }

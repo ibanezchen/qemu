@@ -54,11 +54,17 @@ typedef struct {
     MemoryRegion mem;
 } gpt_t;
 
+static void bp(void)
+{
+}
+
 static void hc_timer_tick(void *opaque)
 {
     gpt_t *t = (gpt_t *) opaque;
-    if (t->ctrl & (1 << I_ENABLE))
+    if (t->ctrl & (1 << I_ENABLE)){
+    	bp();
         qemu_irq_pulse(t->irq);
+    }
     if (!(t->ctrl & (1 << I_MODE)))
         t->ctrl &= ~(1 << I_ENABLE);
 }
