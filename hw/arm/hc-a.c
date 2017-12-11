@@ -1,3 +1,21 @@
+/*
+ * hyperC evaluation platform.
+ *
+ * Copyright (C) socware.net <socware.help@gmail.com>
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 or
+ * (at your option) version 3 of the License.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, see <http://www.gnu.org/licenses/>.
+ */
 #include "qemu/osdep.h"
 #include "qapi/error.h"
 #include "qemu-common.h"
@@ -106,7 +124,7 @@ static void init_cpus(const char *cpu_type, const char *privdev,
 
 static void hc_common_init(MachineState *machine)
 {
-	MemoryRegion *sysmem;
+    MemoryRegion *sysmem;
     unsigned base, size;
     qemu_irq pic[64];
     MemoryRegion *mem = g_new(MemoryRegion, 1);
@@ -115,16 +133,16 @@ static void hc_common_init(MachineState *machine)
     sysmem = get_system_memory();
 
     init_cpus(machine->cpu_type, TYPE_A9MPCORE_PRIV, 0xB0400000, pic, hms->secure);
-    /* System Memory Mappings */
     base = 0;
     size = 0x10000000;
-    //memory_region_init_ram(mem, oc, "gbb_dram", size);
     
     memory_region_allocate_system_memory(mem, NULL, "hc_dram", size);
     memory_region_add_subregion(sysmem, base, mem);
 
     serial_mm_init(sysmem, 0xB0200000, 2, pic[7], 115200, serial_hds[0], DEVICE_NATIVE_ENDIAN);
-    //serial_mm_init(sysmem, 0xB0300000, 2, pic[8], 115200, serial_hds[1], DEVICE_NATIVE_ENDIAN);
+    if( serial_hds[1] ){
+        serial_mm_init(sysmem, 0xB0300000, 2, pic[8], 115200, serial_hds[1], DEVICE_NATIVE_ENDIAN);
+    }
     sysbus_create_simple("hc.timer", 0xB0500000, pic[0]);
     sysbus_create_simple("hc.timer", 0xB0600000, pic[1]);
     sysbus_create_simple("hc.rtc", 0xB0800000, pic[3]);
@@ -136,7 +154,7 @@ static void hc_common_init(MachineState *machine)
     hc_binfo.kernel_filename = machine->kernel_filename;
     hc_binfo.kernel_cmdline  = machine->kernel_cmdline;
     hc_binfo.initrd_filename = machine->initrd_filename;
-    hc_binfo.board_id        = 0x3088; //gbb
+    hc_binfo.board_id        = 0x3088;
     hc_binfo.loader_start    = 0x0;
     arm_load_kernel(ARM_CPU(first_cpu), &hc_binfo);
 
@@ -157,7 +175,6 @@ static void hc_set_secure(Object *obj, bool value, Error **errp)
 static void hc_instance_init(Object *obj)
 {
     HCMachineState *vms = HC_MACHINE(obj);
-    /* EL3 is enabled by default on vexpress */
     vms->secure = true;
     object_property_add_bool(obj, "secure", hc_get_secure,
                              hc_set_secure, NULL);
